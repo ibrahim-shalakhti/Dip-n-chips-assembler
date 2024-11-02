@@ -130,10 +130,11 @@
     <ClCompile Include="main project.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="mips_instructions.txt" />
+    <Text Include="assembly_code.txt" />
+    <Text Include="machine_code.txt" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="binary_output.hex" />
+    <None Include="binary_output.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
