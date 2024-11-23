@@ -26,6 +26,9 @@
     <Text Include="machine_code.txt">
       <Filter>Source Files</Filter>
     </Text>
+    <Text Include="data_memory.txt">
+      <Filter>Source Files</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="binary_output.txt">

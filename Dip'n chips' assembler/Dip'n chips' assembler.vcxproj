@@ -131,6 +131,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="assembly_code.txt" />
+    <Text Include="data_memory.txt" />
     <Text Include="machine_code.txt" />
   </ItemGroup>
   <ItemGroup>

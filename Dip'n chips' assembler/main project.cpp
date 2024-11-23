@@ -35,6 +35,10 @@ using namespace std;
 // $t3 = $10
 // added: Hex - some opcodes and function codes
 
+string current_segment = ".text"; // Tracks the current segment
+int data_segment_pc = 0;          // Tracks the PC for the .data segment
+int text_segment_pc = 0;          // Tracks the PC for the .text segment
+
 // Define opcodes for each instruction type
 unordered_map<string, string> opcode_map = {
     {"ADD", "000000"}, {"SUB", "000000"}, {"AND", "000000"}, {"OR", "000000"},
@@ -46,6 +50,9 @@ unordered_map<string, string> opcode_map = {
     {"ADDI", "001000"}, {"ORI", "001101"}, {"XORI", "001110"},
     {"ANDI", "001100"}, {"SLL", "000000"}, {"SRL", "000000"},
 };
+
+// hash table to store labels
+unordered_map<string, int> labels;
 
 //! Binary to hex
 string binaryToHex(const std::string& binary) {
@@ -94,6 +101,60 @@ unordered_map<string, string> register_map = {
     {"$28", "11100"}, {"$29", "11101"}, {"$30", "11110"}, {"$31", "11111"}
 };
 
+
+// Function to perform the first pass
+void first_pass(vector<string> lines) {
+    int pc = 0; // Program counter to track the current instruction line
+
+    for (const string& line : lines) {
+        istringstream ss(line);
+        string first_token;
+        ss >> first_token; // Extract the first token of the line
+
+        // Check if it's a directive
+        if (!first_token.empty() && first_token[0] == '.') {
+            if (first_token == ".data") {
+                current_segment = ".data";
+                pc = data_segment_pc; // Switch to .data segment PC
+            }
+            else if (first_token == ".text") {
+                current_segment = ".text";
+                pc = text_segment_pc; // Switch to .text segment PC
+            }
+            else if (first_token == ".org") {
+                string address;
+                ss >> address;
+                pc = stoi(address); // Update PC to specified address
+            }
+            else if (first_token == ".end") {
+                break; // End the first pass
+            }
+
+            // Check if the first token starts with a dot (indicating a label)
+            if (!first_token.empty() && first_token[0] == '.') {
+
+                // Remove the colon (:) if it's present at the end of the label
+                if (first_token.back() == ':') {
+                    first_token.pop_back();
+                }
+
+                // Add the label and its corresponding PC value to the map
+                labels[first_token] = pc;
+            }
+
+            // Increment the program counter in the current segment
+            if (current_segment == ".text") {
+                text_segment_pc++;
+                pc = text_segment_pc;
+            }
+            else if (current_segment == ".data") {
+                data_segment_pc++;
+                pc = data_segment_pc;
+            }
+        }
+    }
+}
+
 // Helper function to convert integer to binary with padding
 string int_to_bin(int number, int bits) {
     return bitset<32>(number).to_string().substr(32 - bits, bits);
@@ -138,11 +199,15 @@ string convert_i_type(const vector<string>& tokens) {
     string rs = register_map[tokens[2]];
     string rt = register_map[tokens[1]];
 
-    // Parse the immediate value (supporting decimal, hexadecimal, and binary)
+    // Parse the immediate value or resolve it if it's a label
     string imm_str = tokens[3];
     int immediate = 0;
 
-    if (imm_str.find("0x") == 0 || imm_str.find("0X") == 0) {
+    if (labels.count(imm_str)) {
+        // Resolve the label to its address
+        immediate = labels[imm_str];
+    }
+    else if (imm_str.find("0x") == 0 || imm_str.find("0X") == 0) {
         // Hexadecimal (e.g., 0x1A)
         immediate = stoi(imm_str, nullptr, 16);
     }
@@ -162,10 +227,21 @@ string convert_i_type(const vector<string>& tokens) {
 }
 
 
+
 // Convert J-type instruction to binary
 string convert_j_type(const vector<string>& tokens) {
     string opcode = opcode_map[tokens[0]];
-    int address = stoi(tokens[1]);
+    int address = 0;
+
+    // Check if the token is a label
+    if (labels.count(tokens[1])) {
+        address = labels[tokens[1]]; // Resolve the label to its address
+    }
+    else {
+        address = stoi(tokens[1]); // If not a label, assume it's a direct address
+    }
+
+    // Convert the address to a 26-bit binary string
     string addr_bin = int_to_bin(address, 26);
     return opcode + addr_bin;
 }
@@ -195,77 +271,145 @@ vector<string> handle_pseudo_instruction(const vector<string>& tokens) {
 }
 
 // Process each instruction
-vector<string> process_instruction(const string& line) {
-    istringstream ss(line);
-    vector<string> tokens;
-    string token;
-    vector<string> result;
+void second_pass(vector<string>& lines, ofstream& outfile1, ofstream& outfile2) {
+    int text_pc = 0; // Program counter for the .text segment
+    int data_pc = 0; // Program counter for the .data segment
+    int current_pc = 0; // Tracks the overall memory address
+    string current_segment = ".text"; // Tracks the active segment
 
-    // Tokenize the input line and remove any commas
-    while (ss >> token) {
-        // Remove any commas from the token
-        // token.erase(remove(token.begin(), token.end(), ','), token.end());
-        token.erase(std::remove(token.begin(), token.end(), ','), token.end());
+    for (const auto& line : lines) {
+        istringstream ss(line);
+        vector<string> tokens;
+        string token;
 
-        tokens.push_back(token);
-    }
-    if (tokens[0] == "#") {
-        return result;
-    }
-    // Check if it's a pseudo-instruction
-    if (tokens[0] == "BLTZ" || tokens[0] == "BGEZ") {
-        result = handle_pseudo_instruction(tokens);
-    }
-    else if (opcode_map[tokens[0]] == "000000") {  // R-type
-        result.push_back(convert_r_type(tokens));
-    }
-    else if (tokens[0] == "J" || tokens[0] == "JAL") {  // J-type
-        result.push_back(convert_j_type(tokens));
-    }
-    else {  // I-type
-        result.push_back(convert_i_type(tokens));
+        // Tokenize the input line and remove any commas
+        while (ss >> token) {
+            token.erase(std::remove(token.begin(), token.end(), ','), token.end());
+            tokens.push_back(token);
+        }
+
+        if (tokens.empty() || tokens[0] == "#") {
+            continue; // Ignore empty lines and comments
+        }
+
+        // Handle directives
+        if (tokens[0][0] == '.') {
+            if (tokens[0] == ".data") {
+                current_segment = ".data";
+                current_pc = data_pc;
+            }
+            else if (tokens[0] == ".text") {
+                current_segment = ".text";
+                current_pc = text_pc;
+            }
+            else if (tokens[0] == ".org") {
+                // Set the program counter to the specified origin
+                current_pc = stoi(tokens[1]);
+                if (current_segment == ".text") {
+                    text_pc = current_pc;
+                }
+                else if (current_segment == ".data") {
+                    data_pc = current_pc;
+                }
+            }
+            else if (tokens[0] == ".word") {
+                // Write .word data to the appropriate file
+                for (size_t i = 1; i < tokens.size(); i++) {
+                    while (current_pc < data_pc) { // Fill empty space with 0
+                        outfile2 << "00000000000000000000000000000000" << endl;
+                        data_pc++;
+                    }
+                    string word = int_to_bin(stoi(tokens[i]), 32);
+                    outfile2 << word << endl;
+                    data_pc++;
+                    current_pc++;
+                }
+            }
+            continue;
+        }
+
+        // Handle instruction conversion
+        vector<string> result;
+        if (tokens[0] == "BLTZ" || tokens[0] == "BGEZ") {
+            result = handle_pseudo_instruction(tokens);
+        }
+        else if (opcode_map[tokens[0]] == "000000") { // R-type
+            result.push_back(convert_r_type(tokens));
+        }
+        else if (tokens[0] == "J" || tokens[0] == "JAL") { // J-type
+            result.push_back(convert_j_type(tokens));
+        }
+        else { // I-type
+            result.push_back(convert_i_type(tokens));
+        }
+
+        // Write instruction binary to the appropriate file
+        for (const string& binary : result) {
+            while (current_pc < text_pc) { // Fill empty space with 0
+                outfile1 << "00000000000000000000000000000000" << endl;
+                text_pc++;
+            }
+            outfile1 << binary << endl;
+            text_pc++;
+            current_pc++;
+        }
     }
 
-    return result;
+    // Fill any remaining gaps to align addresses in both segments
+    if (current_segment == ".text") {
+        while (current_pc < text_pc) {
+            outfile1 << "00000000000000000000000000000000" << endl;
+            current_pc++;
+        }
+    }
+    else if (current_segment == ".data") {
+        while (current_pc < data_pc) {
+            outfile2 << "00000000000000000000000000000000" << endl;
+            current_pc++;
+        }
+    }
 }
 
 
 int main() {
     ifstream infile("assembly_code.txt");  // Input assembly file
-    ofstream outfile("machine_code.txt");  // Output machine code file
+    ofstream outfile1("machine_code.txt");  // Output machine code file
+    ofstream outfile2("data_memory.txt"); 
     ofstream outfileHex("hex_machine_code.txt");
 
-    if (!infile.is_open() || !outfile.is_open() || !outfileHex.is_open()) {
+    if (!infile.is_open() || !outfile1.is_open() || !outfileHex.is_open() || !outfile2.is_open()) {
         cerr << "Error opening file." << endl;
         return 1;
     }
 
+    //insert file into a vector
     string line;
     vector<string> lines;
     while (getline(infile, line)) {
-        // Ignore empty lines
-        if (line.empty()) continue;
-
+        if (line.empty()) continue; // Ignore empty lines
         lines.push_back(line);
-        // Process the instruction and get the binary code(s)
-        vector<string> binary_code = process_instruction(line);
-        cout << line << endl;
-        // Write each binary code line to the output file
-        for (const auto& code : binary_code) {
-            // Ensure the code is exactly 32 bits by enforcing padding
-            string binary = bitset<32>(stoul(code, nullptr, 2)).to_string();
-            outfile << binary << endl;
-            outfileHex << binaryToHex(binary) << endl;
-        }
     }
-    for (auto line : lines) {
 
-    }
+    first_pass(lines);
+    second_pass(lines,outfile1,outfile2);
+
+    //for (auto line : lines) {
+    //    // Process the instruction and get the binary code(s)
+    //    vector<string> binary_code = process_instruction(line);
+    //    // Write each binary code line to the output file
+    //    for (const auto& code : binary_code) {
+    //        // Ensure the code is exactly 32 bits by enforcing padding
+    //        string binary = bitset<32>(stoul(code, nullptr, 2)).to_string();
+    //        outfile << binary << endl;
+    //        outfileHex << binaryToHex(binary) << endl;
+    //    }
+    //}
 
     infile.close();
-    outfile.close();
+    outfile1.close();
+    outfile2.close();
     outfileHex.close();
 
-    cout << "Conversion complete. Check machine_code.txt for output." << endl;
+    std::cout << "Conversion complete. Check machine_code.txt for output." << endl;
     return 0;
 }
