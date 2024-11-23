@@ -9,11 +9,3 @@
        BEQ $t0, $t1, .end
        J .start
 .end:   .end
-
-ADD $t0, $t1, $t2
-SUB $t0, $t1, $t2
-AND $t0, $t1, $t2
-OR $t0, $t1, $t2 
-XOR $t0, $t1, $t2
-NOR $t0, $t1, $t2
-SLT $t0, $t1, $t2
