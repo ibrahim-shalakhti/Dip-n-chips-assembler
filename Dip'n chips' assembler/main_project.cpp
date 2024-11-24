@@ -21,9 +21,10 @@ namespace fs = std::filesystem;
 
 // Assembler Parameters
 const int INSTRUCTION_LENGTH = 1;
-const int PC_START = 0, DATA_ADDRESS_START = 0;
+const int PC_START = 1, DATA_ADDRESS_START = 0;
 int cur_instruction = PC_START;
 
+bool psuedo_handle = 0;
 
 // Convert R-type instruction to binary
 string convert_r_type(const vector<string>& tokens) {
@@ -75,7 +76,11 @@ string convert_i_type(const vector<string>& tokens) {
     } else if(tokens[0] == "BNE" || tokens[0] == "BEQ"){
         rs = register_map[tokens[1]];
         rt = register_map[tokens[2]];
-        immediate = labels[tokens[3]] - (cur_instruction - 1)*INSTRUCTION_LENGTH;
+        immediate = labels[tokens[3]] - (cur_instruction + 1)*INSTRUCTION_LENGTH;
+        if (psuedo_handle){
+            if(immediate > 0) immediate -= 1 * INSTRUCTION_LENGTH;
+            else immediate += 1 * INSTRUCTION_LENGTH;
+        }
     } else {
         // This is a standard immediate instruction (e.g., ADDI, ORI, etc.)
 
@@ -107,6 +112,7 @@ string convert_j_type(const vector<string>& tokens) {
 // Process pseudo-instructions like BLTZ and BGEZ
 vector<string> handle_pseudo_instruction(const vector<string>& tokens) {
     vector<string> machine_code;
+    psuedo_handle = 0;
 
     if (tokens[0] == "BLTZ") {
         // BLTZ $t0, label
@@ -131,6 +137,7 @@ vector<string> handle_pseudo_instruction(const vector<string>& tokens) {
         machine_code.push_back(res);
     }
 
+    psuedo_handle = 0;
     return machine_code;
 }
 
@@ -241,10 +248,19 @@ int main(int argc, char* argv[]) {
                 // It's a label
                 labels[token.substr(0, tokens[0].length() - 1)] = pc;
                 tokens.erase(tokens.begin());
-                if(tokens.size()) lines.push_back(tokens);
+                if(tokens.size()){
+                    lines.push_back(tokens);
+                    pc += INSTRUCTION_LENGTH;
+                    if(tokens[0]=="BGEZ" || tokens[0]=="BLTZ"){
+                        pc+= INSTRUCTION_LENGTH;
+                    }
+                }
             } else {
                 // Non-label line; increment address
                 pc += INSTRUCTION_LENGTH;
+                if(tokens[0]=="BGEZ" || tokens[0]=="BLTZ"){
+                    pc+= INSTRUCTION_LENGTH;
+                }
                 lines.push_back(tokens);      
             }
         }
@@ -252,7 +268,9 @@ int main(int argc, char* argv[]) {
 
 
     second_pass(lines);
-
+    for(auto [k, v]: labels){
+        cout<<k<<": "<<v<<endl;
+    }
     // Write `.text` machine code output
     for (const auto& code : machine_code) {
         textFile << code << endl;
