@@ -33,6 +33,7 @@ string convert_r_type(const vector<string>& tokens) {
     string rt="00000", rd="00000", shamt = "00000";
     string funct = funct_map[tokens[0]];
 
+
     if (tokens[0] == "SLL" || tokens[0] == "SRL") {
         // Shift instructions: SLL rd, rt, shamt
         rd = register_map[tokens[1]];
@@ -77,10 +78,13 @@ string convert_i_type(const vector<string>& tokens) {
         rs = register_map[tokens[1]];
         rt = register_map[tokens[2]];
         immediate = labels[tokens[3]] - (cur_instruction + 1)*INSTRUCTION_LENGTH;
+        cout<<immediate<<endl;
         if (psuedo_handle){
+
             if(immediate > 0) immediate -= 1 * INSTRUCTION_LENGTH;
             else immediate += 1 * INSTRUCTION_LENGTH;
         }
+        cout<<immediate<<endl;
     } else {
         // This is a standard immediate instruction (e.g., ADDI, ORI, etc.)
 
@@ -112,7 +116,7 @@ string convert_j_type(const vector<string>& tokens) {
 // Process pseudo-instructions like BLTZ and BGEZ
 vector<string> handle_pseudo_instruction(const vector<string>& tokens) {
     vector<string> machine_code;
-    psuedo_handle = 0;
+    psuedo_handle = 1;
 
     if (tokens[0] == "BLTZ") {
         // BLTZ $t0, label
