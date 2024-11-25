@@ -21,7 +21,7 @@ namespace fs = std::filesystem;
 
 // Assembler Parameters
 const int INSTRUCTION_LENGTH = 1;
-const int PC_START = 1, DATA_ADDRESS_START = 0;
+const int PC_START = 0, DATA_ADDRESS_START = 0;
 int cur_instruction = PC_START;
 
 bool psuedo_handle = 0;
@@ -65,6 +65,7 @@ string convert_i_type(const vector<string>& tokens) {
     size_t paren_start = tokens[2].find('(');
     size_t paren_end = tokens[2].find(')');
     if (paren_start != string::npos && paren_end != string::npos) {
+        cout<<tokens[0]<<endl;
         // This is a load/store instruction (e.g., LW, SW)
         // Extract offset and base register
         string offset_str = tokens[2].substr(0, paren_start);
@@ -87,13 +88,14 @@ string convert_i_type(const vector<string>& tokens) {
         cout<<immediate<<endl;
     } else {
         // This is a standard immediate instruction (e.g., ADDI, ORI, etc.)
-
         rs = register_map[tokens[2]];  // Source register
         immediate = stringToInt(tokens[3]);
     }
 
     // Convert the immediate value to a 16-bit binary string
     string imm_bin = int_to_bin(immediate, 16);
+    cout<<tokens[0]<<endl;
+    cout<<opcode <<" "<<rs << " "<<rt<<" "<<imm_bin<<endl;
 
     return opcode + rs + rt + imm_bin;
 }
@@ -236,6 +238,7 @@ int main(int argc, char* argv[]) {
         string token;
         while (ss >> token) {
             token.erase(std::remove(token.begin(), token.end(), ','), token.end());
+            if(token.empty()) continue;
             if(token[0]=='#') break;
             tokens.push_back(to_uppercase(token));
         }
@@ -250,7 +253,7 @@ int main(int argc, char* argv[]) {
         if(inTextSection) {
             if (token.back() == ':') {
                 // It's a label
-                labels[token.substr(0, tokens[0].length() - 1)] = pc;
+                labels[tokens[0].substr(0, tokens[0].length() - 1)] = pc;
                 tokens.erase(tokens.begin());
                 if(tokens.size()){
                     lines.push_back(tokens);
@@ -280,9 +283,9 @@ int main(int argc, char* argv[]) {
         textFile << code << endl;
         textHexFile << binaryToHex(code) << endl;
     }
-
+    int ind = 0;
     for (const auto& code : dataOut) {
-        dataFile << code << endl;
+        dataFile<< binaryToHex(code) << endl;
     }
 
     infile.close();
