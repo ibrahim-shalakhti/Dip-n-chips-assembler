@@ -81,7 +81,6 @@ string convert_i_type(const vector<string>& tokens) {
         immediate = labels[tokens[3]] - (cur_instruction + 1)*INSTRUCTION_LENGTH;
         cout<<immediate<<endl;
         if (psuedo_handle){
-
             if(immediate > 0) immediate -= 1 * INSTRUCTION_LENGTH;
             else immediate += 1 * INSTRUCTION_LENGTH;
         }
@@ -95,6 +94,7 @@ string convert_i_type(const vector<string>& tokens) {
     // Convert the immediate value to a 16-bit binary string
     string imm_bin = int_to_bin(immediate, 16);
     cout<<tokens[0]<<endl;
+    cout<<"Psuedo: "<<psuedo_handle<<endl;;
     cout<<opcode <<" "<<rs << " "<<rt<<" "<<imm_bin<<endl;
 
     return opcode + rs + rt + imm_bin;
@@ -123,16 +123,16 @@ vector<string> handle_pseudo_instruction(const vector<string>& tokens) {
     if (tokens[0] == "BLTZ") {
         // BLTZ $t0, label
         // Translates to: SLT $at, $t0, $zero ; BNE $at, $zero, label
-        vector<string> slt_tokens = { "SLT", "$at", tokens[1], "$zero" };
-        vector<string> bne_tokens = { "BNE", "$at", "$zero", tokens[2] };
+        vector<string> slt_tokens = { "SLT", "$AT", tokens[1], "$ZERO" };
+        vector<string> bne_tokens = { "BNE", "$AT", "$ZERO", tokens[2] };
         machine_code.push_back(convert_r_type(slt_tokens));
         machine_code.push_back(convert_i_type(bne_tokens));
     }
     else if (tokens[0] == "BGEZ") {
         // BGEZ $t0, label
-        // Translates to: SLT $at, $t0, $zero ; BEQ $at, $zero, label
-        vector<string> slt_tokens = { "SLT", "$at", tokens[1], "$zero" };
-        vector<string> beq_tokens = { "BEQ", "$at", "$zero", tokens[2] };
+        // TranslATes to: SLT $AT, $t0, $ZERO ; BEQ $AT, $ZERO, label
+        vector<string> slt_tokens = { "SLT", "$AT", tokens[1], "$ZERO" };
+        vector<string> beq_tokens = { "BEQ", "$AT", "$ZERO", tokens[2] };
         machine_code.push_back(convert_r_type(slt_tokens));
         machine_code.push_back(convert_i_type(beq_tokens));
     }
