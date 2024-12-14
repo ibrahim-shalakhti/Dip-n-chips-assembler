@@ -56,6 +56,8 @@ string convert_r_type(const vector<string>& tokens) {
 #include <regex> // For pattern matching hexadecimal and binary formats
 
 string convert_i_type(const vector<string>& tokens) {
+    for(auto t: tokens) cout<<t<<" ";
+    cout<<endl;
     string opcode = opcode_map[tokens[0]];
     string rt = register_map[tokens[1]];  // Target or destination register
     string rs;                           // Source register
@@ -78,14 +80,11 @@ string convert_i_type(const vector<string>& tokens) {
     } else if(tokens[0] == "BNE" || tokens[0] == "BEQ"){
         rs = register_map[tokens[1]];
         rt = register_map[tokens[2]];
-        immediate = labels[tokens[3]] - (cur_instruction + 1)*INSTRUCTION_LENGTH;
-        cout<<immediate<<endl;
+        immediate = labels[tokens[3]] - cur_instruction - 1;
         if (psuedo_handle){
-
             if(immediate > 0) immediate -= 1 * INSTRUCTION_LENGTH;
             else immediate += 1 * INSTRUCTION_LENGTH;
         }
-        cout<<immediate<<endl;
     } else {
         // This is a standard immediate instruction (e.g., ADDI, ORI, etc.)
         rs = register_map[tokens[2]];  // Source register
@@ -95,6 +94,7 @@ string convert_i_type(const vector<string>& tokens) {
     // Convert the immediate value to a 16-bit binary string
     string imm_bin = int_to_bin(immediate, 16);
     cout<<tokens[0]<<endl;
+    cout<<"Psuedo: "<<psuedo_handle<<endl;;
     cout<<opcode <<" "<<rs << " "<<rt<<" "<<imm_bin<<endl;
 
     return opcode + rs + rt + imm_bin;
@@ -130,9 +130,9 @@ vector<string> handle_pseudo_instruction(const vector<string>& tokens) {
     }
     else if (tokens[0] == "BGEZ") {
         // BGEZ $t0, label
-        // TranslATes to: SLT $AT, $t0, $ZERO ; BEQ $AT, $ZERO, label
-        vector<string> slt_tokens = { "SLT", "$AT", tokens[1], "$ZERO" };
-        vector<string> beq_tokens = { "BEQ", "$AT", "$ZERO", tokens[2] };
+        // Translates to: SLT $at, $t0, $zero ; BEQ $at, $zero, label
+        vector<string> slt_tokens = { "SLT", "$at", tokens[1], "$zero" };
+        vector<string> beq_tokens = { "BEQ", "$at", "$zero", tokens[2] };
         machine_code.push_back(convert_r_type(slt_tokens));
         machine_code.push_back(convert_i_type(beq_tokens));
     }
@@ -152,11 +152,13 @@ vector<string> process_instruction(const vector<string>& tokens) {
     vector<string> result;
 
     if(tokens.empty()){
+        cout<<"Empty Tokens"<<endl;
         return result;
     }
     // Check if it's a pseudo-instruction
     if (tokens[0] == "BLTZ" || tokens[0] == "BGEZ" || tokens[0] == "NOP") {
         result = handle_pseudo_instruction(tokens);
+        // cur_instruction++;
     }
     else if (opcode_map[tokens[0]] == "000000") {  // R-type
         result.push_back(convert_r_type(tokens));
@@ -164,10 +166,14 @@ vector<string> process_instruction(const vector<string>& tokens) {
     else if (tokens[0] == "J" || tokens[0] == "JAL") {  // J-type
         result.push_back(convert_j_type(tokens));
     }
-    else {  // I-type
+    else if(opcode_map.count(tokens[0])) {  // I-type
         result.push_back(convert_i_type(tokens));
     }
-
+    else{
+        cout<<"Can't Identify at " <<cur_instruction<<endl;
+        exit(1);
+    }
+    if(tokens[0] == "BLTZ" || tokens[0]=="BGEZ") cur_instruction++;
     cur_instruction++;
     return result;
 }
@@ -273,11 +279,17 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
-    second_pass(lines);
     for(auto [k, v]: labels){
         cout<<k<<": "<<v<<endl;
     }
+    for(auto line: lines){
+        for(auto token: line){
+            cout<<token<<" |||| ";
+        }
+        cout<<endl;
+    }
+
+    second_pass(lines);
     // Write `.text` machine code output
     for (const auto& code : machine_code) {
         textFile << code << endl;
