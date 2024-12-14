@@ -1,8 +1,41 @@
-addi $1, $2, 3
-nop 
-nop
-nop
-add $3, $1, $1
-nop
-nop
-nop
+.data 
+myArray:   .word 1, 4, 5, 7, 9, 12, 15, 17, 20, 21, 30 
+arraySize: .word 11 
+
+.text 
+#Initialization 
+addi $1, $0, 0x0  
+addi $2, $0, 0xB  
+addi $3, $0, 0x7  
+
+loop: 
+    slt $7, $2, $1 
+    bne $0, $7, notFound         
+    add $4, $2, $1                 
+    srl $5, $4, 1                   
+
+    lw  $6, 0x0($5)                   
+
+    beq $3, $6, found               
+    slt $6, $6, $1          
+    beq $6, $0, leftHalf          
+    j   rightHalf                     
+
+leftHalf: 
+    add $2, $5, 0xFFFF       
+    j   loop                     
+
+rightHalf: 
+    addi $1, $5, 0x1             
+    j    loop                 
+
+found:  
+    add $8, $zero, $5              
+    j finish 
+
+notFound:  
+    addi $8, $0, 0xFFFF          
+    j finish 
+
+finish: 
+    NOP 
